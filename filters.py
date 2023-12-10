@@ -1,6 +1,6 @@
 import pandas_ta as ta
 import pandas as pd
-import talib
+# import talib
 
 
 def buy_cross(a: pd.Series, b: pd.Series):
@@ -25,8 +25,15 @@ def squeeze(prices: pd.DataFrame, period: int = 21):
 
 
 def mean_reversion(prices: pd.DataFrame, period=50, mult=3):
-    ma = talib.SMA(prices['close'], period)
-    std = talib.STDDEV(prices['close'], period)
+    # ma = talib.SMA(prices['close'], period)
+    # std = talib.STDDEV(prices['close'], period)
+    # ma = prices['close'].ta.sma(period)
+    ma = ta.sma(prices["close"], length=period, talib=False)
+    std = ta.stdev(prices["close"], length=period, talib=False)
+
+    if ma is None or std is None:
+        return False
+
     lower = ma - mult * std
 
     if any(prices['close'].values[-5:] < lower.values[-5:]):
@@ -36,8 +43,14 @@ def mean_reversion(prices: pd.DataFrame, period=50, mult=3):
 
 def sma_crosses(prices: pd.DataFrame, short_period: int = 50, long_period: int = 200):
     prices = prices.iloc[-long_period-10:, :]
-    short_ma = talib.SMA(prices['close'], short_period)
-    long_ma = talib.SMA(prices['close'], long_period)
+    # short_ma = talib.SMA(prices['close'], short_period)
+    # long_ma = talib.SMA(prices['close'], long_period)
+    short_ma = ta.sma(prices["close"], length=short_period, talib=False)
+    long_ma = ta.sma(prices["close"], length=long_period, talib=False)
+    
+    if short_ma is None or long_ma is None:
+        return False
+
     crosses = buy_cross(short_ma, long_ma)
 
     last_n = list(crosses.values[-10:])
@@ -48,10 +61,11 @@ def sma_crosses(prices: pd.DataFrame, short_period: int = 50, long_period: int =
 
 def supertrend_sma_breakout(prices: pd.DataFrame, ma_period: int = 200, atr_period : int = 21, mult: int = 2):
     prices = prices.iloc[-ma_period-atr_period:, :]
-    ma = talib.SMA(prices['close'], ma_period)
+    # ma = talib.SMA(prices['close'], ma_period)
+    ma = ta.sma(prices["close"], length=ma_period, talib=False)
     st = ta.supertrend(prices['high'], prices['low'], prices['close'], length=atr_period, multiplier=mult)
 
-    if st is None:
+    if st is None or ma is None:
         return False
 
     crosses = buy_cross(prices['close'], st['SUPERT_21_2.0'])
@@ -71,8 +85,13 @@ def no_trend(prices: pd.DataFrame, period: int = 21, thresh: int = 15):
     h = prices['high']
     l = prices['low']
     c = prices['close']
-    adx = talib.ADX(h, l, c, timeperiod=period)
-    if adx.values[-1] <= thresh:
+    # adx = talib.ADX(h, l, c, timeperiod=period)
+    adx = ta.adx(h, l, c, timeperiod=period)
+    
+    if adx is None:
+        return False
+
+    if adx.iloc[-1, 0] <= thresh:
         return True
     else:
         return False
@@ -86,6 +105,9 @@ def breakout(prices: pd.DataFrame, period: int = 21):
     channel = ta.donchian(prices['high'], prices['low'], period, period)
     prices['upper'] = channel[f'DCU_{period}_{period}']
     prices['lower'] = channel[f'DCL_{period}_{period}']
+
+    if channel is None or squeeze is None:
+        return False
 
     if any(on) == 1 and prices['close'].values[-1] > prices['upper'].values[-2]:
         return True
